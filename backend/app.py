@@ -1,23 +1,58 @@
-import os
+﻿import os
 import json
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
-
-app = Flask(__name__)
-CORS(app)  # Enable Cross-Origin Resource Sharing
+from openai import OpenAI
+from dotenv import load_dotenv
 
 # Paths
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BACKEND_DIR, 'models')
+ASSISTANT_INSTRUCTIONS_PATH = os.path.join(BACKEND_DIR, 'assistant_instructions.md')
+
+load_dotenv(os.path.join(BACKEND_DIR, '.env'))
+
+app = Flask(__name__)
+CORS(app)  # Enable Cross-Origin Resource Sharing
+
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
+OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'openai/gpt-4o-mini')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4.1-mini')
+
+if OPENROUTER_API_KEY:
+    chat_provider = 'openrouter'
+    chat_model = OPENROUTER_MODEL
+    openai_client = OpenAI(
+        api_key=OPENROUTER_API_KEY,
+        base_url=OPENROUTER_BASE_URL,
+        default_headers={
+            'HTTP-Referer': os.environ.get('APP_PUBLIC_URL', 'http://localhost:5173'),
+            'X-OpenRouter-Title': 'SmartHeartDiagnosis'
+        }
+    )
+elif OPENAI_API_KEY:
+    chat_provider = 'openai'
+    chat_model = OPENAI_MODEL
+    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    chat_provider = None
+    chat_model = None
+    openai_client = None
 
 # Load models and preprocessing assets
 preprocessor = None
 models = {}
 metrics_data = {}
 stats_data = {}
+
+def load_assistant_instructions():
+    with open(ASSISTANT_INSTRUCTIONS_PATH, 'r', encoding='utf-8') as f:
+        return f.read().strip()
 
 def load_assets():
     global preprocessor, models, metrics_data, stats_data
@@ -82,6 +117,55 @@ def get_stats():
     if not stats_data:
         load_assets()
     return jsonify(stats_data)
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    if openai_client is None:
+        return jsonify({
+            'error': 'Chat API key is not configured. Set OPENROUTER_API_KEY or OPENAI_API_KEY on the backend server.'
+        }), 500
+
+    try:
+        data = request.json or {}
+        messages = data.get('messages', [])
+        if not isinstance(messages, list) or not messages:
+            return jsonify({'error': 'messages must be a non-empty array.'}), 400
+
+        safe_messages = []
+        for item in messages[-12:]:
+            role = item.get('role')
+            content = str(item.get('content', '')).strip()
+            if role in ['user', 'assistant'] and content:
+                safe_messages.append({
+                    'role': role,
+                    'content': content[:2000]
+                })
+
+        if not safe_messages or safe_messages[-1]['role'] != 'user':
+            return jsonify({'error': 'The last message must be from the user.'}), 400
+
+        assistant_instructions = load_assistant_instructions()
+
+        response = openai_client.chat.completions.create(
+            model=chat_model,
+            messages=[
+                {'role': 'system', 'content': assistant_instructions},
+                *safe_messages
+            ],
+            max_tokens=500,
+            temperature=0.4
+        )
+        reply = response.choices[0].message.content
+
+        return jsonify({
+            'reply': reply,
+            'model': chat_model,
+            'provider': chat_provider
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
@@ -331,3 +415,4 @@ def predict():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+

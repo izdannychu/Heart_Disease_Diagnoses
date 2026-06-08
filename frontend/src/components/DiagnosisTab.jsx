@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { predictPatient } from '../utils/api';
-import { HeartPulse, Activity, Stethoscope, Send, AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Pill, TestTube, Salad, RefreshCw, Shuffle, Eye, X } from 'lucide-react';
+import { HeartPulse, Activity, Stethoscope, Send, AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Pill, TestTube, Salad, RefreshCw, Shuffle, Eye, X, Download } from 'lucide-react';
+import pdfMake from 'pdfmake/build/pdfmake';
+import pdfFonts from 'pdfmake/build/vfs_fonts';
+
+pdfMake.addVirtualFileSystem(pdfFonts);
 
 const INITIAL_FORM = {
   Age: '',
@@ -21,6 +25,9 @@ const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + mi
 const randomDecimal = (min, max, decimals = 1) => (
   Math.random() * (max - min) + min
 ).toFixed(decimals);
+
+const asText = (value) => String(value ?? 'Chưa có');
+const asPercent = (value) => `${Number(value ?? 0).toFixed(1)}%`;
 
 export default function DiagnosisTab({ selectedModel }) {
   const [form, setForm] = useState(INITIAL_FORM);
@@ -127,6 +134,200 @@ export default function DiagnosisTab({ selectedModel }) {
         </svg>
       </div>
     );
+  };
+
+  const buildPdfReport = () => {
+    const generatedAt = new Date().toLocaleString('vi-VN');
+    const patientRows = Object.entries(result.patient_data ?? {}).map(([key, value]) => [
+      { text: asText(key), style: 'tableKey' },
+      { text: asText(value), style: 'tableValue' },
+    ]);
+
+    const modelRows = Object.entries(result.predictions ?? {}).map(([name, pred]) => {
+      const modelRisk = pred.risk_percentage ?? ((pred.probability_1 ?? 0) * 100);
+      return [
+        { text: name, bold: name === selectedModel },
+        asPercent(modelRisk),
+        asPercent((pred.probability_0 ?? 0) * 100),
+        asPercent((pred.probability_1 ?? 0) * 100),
+      ];
+    });
+
+    const riskFactorItems = (result.risk_factors?.length ? result.risk_factors : [{
+      feature: 'Không có yếu tố nguy cơ nổi bật',
+      value: '',
+      reason: 'Bộ luật hiện tại không phát hiện yếu tố nguy cơ đáng chú ý từ dữ liệu đã nhập.',
+    }]).map(rf => ({
+      margin: [0, 0, 0, 8],
+      stack: [
+        { text: `${asText(rf.feature)}${rf.value ? `: ${asText(rf.value)}` : ''}`, bold: true },
+        { text: asText(rf.reason), color: '#667085', margin: [0, 2, 0, 0] },
+      ],
+    }));
+
+    const recommendationList = (title, items = []) => ({
+      margin: [0, 0, 0, 10],
+      stack: [
+        { text: title, style: 'subsection' },
+        {
+          ul: items.length ? items.map(asText) : ['Không có dữ liệu khuyến nghị.'],
+          margin: [0, 4, 0, 0],
+        },
+      ],
+    });
+
+    return {
+      pageSize: 'A4',
+      pageMargins: [36, 40, 36, 40],
+      defaultStyle: {
+        font: 'Roboto',
+        fontSize: 10,
+        color: '#111827',
+        lineHeight: 1.18,
+      },
+      content: [
+        {
+          columns: [
+            {
+              width: '*',
+              stack: [
+                { text: 'SmartHeartDiagnosis', style: 'brand' },
+                { text: 'Báo cáo ước tính nguy cơ bệnh tim', style: 'title' },
+                { text: `Ngày tạo: ${generatedAt}`, color: '#667085', margin: [0, 3, 0, 0] },
+                { text: `Mô hình chính: ${selectedModel}`, color: '#667085', margin: [0, 2, 0, 0] },
+              ],
+            },
+            {
+              width: 150,
+              table: {
+                widths: ['*'],
+                body: [[
+                  {
+                    stack: [
+                      { text: 'NGUY CƠ ƯỚC TÍNH', style: 'scoreLabel' },
+                      { text: `${riskPercentage}%`, style: 'score' },
+                      { text: riskLevelLabel, alignment: 'center', color: isHighRisk ? '#b91c1c' : '#047857' },
+                    ],
+                    fillColor: isHighRisk ? '#fff1f2' : '#ecfdf5',
+                    border: [true, true, true, true],
+                    borderColor: isHighRisk ? '#fecdd3' : '#a7f3d0',
+                    margin: [8, 8, 8, 8],
+                  },
+                ]],
+              },
+              layout: {
+                hLineColor: () => (isHighRisk ? '#fecdd3' : '#a7f3d0'),
+                vLineColor: () => (isHighRisk ? '#fecdd3' : '#a7f3d0'),
+              },
+            },
+          ],
+          columnGap: 18,
+        },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 523, y2: 0, lineWidth: 1, lineColor: '#e5e7eb' }], margin: [0, 16, 0, 14] },
+        {
+          table: {
+            widths: ['*', '*', '*'],
+            body: [
+              [
+                { text: 'MODEL ĐANG XEM', style: 'summaryLabel' },
+                { text: 'TRUNG BÌNH 4 MÔ HÌNH', style: 'summaryLabel' },
+                { text: 'YẾU TỐ NGUY CƠ', style: 'summaryLabel' },
+              ],
+              [
+                { text: selectedModel, style: 'summaryValue' },
+                { text: ensembleRiskPercentage ? `${ensembleRiskPercentage}%` : 'Chưa có', style: 'summaryValue' },
+                { text: `${result.risk_factors?.length ?? 0} mục`, style: 'summaryValue' },
+              ],
+            ],
+          },
+          layout: 'lightHorizontalLines',
+          margin: [0, 0, 0, 14],
+        },
+        { text: 'Thông tin bệnh nhân đã nhập', style: 'section' },
+        {
+          table: {
+            widths: ['35%', '*'],
+            body: patientRows.length ? patientRows : [[{ text: 'Không có dữ liệu', colSpan: 2 }, {}]],
+          },
+          layout: 'lightHorizontalLines',
+          margin: [0, 0, 0, 14],
+        },
+        { text: 'Kết quả theo từng mô hình', style: 'section' },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', 'auto', 'auto', 'auto'],
+            body: [
+              [
+                { text: 'Mô hình', style: 'tableHeader' },
+                { text: 'Nguy cơ', style: 'tableHeader' },
+                { text: 'P(Không bệnh)', style: 'tableHeader' },
+                { text: 'P(Bệnh tim)', style: 'tableHeader' },
+              ],
+              ...modelRows,
+            ],
+          },
+          layout: 'lightHorizontalLines',
+          margin: [0, 0, 0, 14],
+        },
+        { text: 'Các yếu tố nguy cơ được phát hiện', style: 'section' },
+        { stack: riskFactorItems, margin: [0, 0, 0, 8] },
+        { text: 'Khuyến nghị tham khảo', style: 'section' },
+        recommendationList('Chỉ định cận lâm sàng', result.recommendations?.tests),
+        recommendationList('Hướng dẫn điều trị', result.recommendations?.treatments),
+        recommendationList('Thay đổi lối sống', result.recommendations?.lifestyle),
+        {
+          text: 'Báo cáo này là kết quả từ mô hình học máy phục vụ mục đích học thuật. Nội dung chỉ mang tính tham khảo và không thay thế chẩn đoán, xét nghiệm hoặc chỉ định điều trị của bác sĩ chuyên khoa.',
+          style: 'disclaimer',
+        },
+      ],
+      styles: {
+        brand: { fontSize: 11, bold: true, color: '#dc2626' },
+        title: { fontSize: 20, bold: true, margin: [0, 4, 0, 0] },
+        scoreLabel: { fontSize: 8, bold: true, color: '#667085', alignment: 'center' },
+        score: { fontSize: 34, bold: true, color: isHighRisk ? '#dc2626' : '#059669', alignment: 'center', margin: [0, 4, 0, 4] },
+        summaryLabel: { fontSize: 8, bold: true, color: '#98a2b3' },
+        summaryValue: { fontSize: 11, bold: true, color: '#111827' },
+        section: { fontSize: 13, bold: true, margin: [0, 8, 0, 8] },
+        subsection: { fontSize: 11, bold: true, color: '#2563eb' },
+        tableHeader: { bold: true, fillColor: '#f9fafb' },
+        tableKey: { bold: true, color: '#344054' },
+        tableValue: { color: '#111827' },
+        disclaimer: { fontSize: 9, color: '#92400e', margin: [0, 10, 0, 0] },
+      },
+    };
+  };
+
+  const handlePreviewPdf = async () => {
+    if (!result || !primaryResult) return;
+
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      setError('Trình duyệt đã chặn tab xem trước PDF. Vui lòng cho phép popup rồi thử lại.');
+      return;
+    }
+
+    try {
+      previewWindow.document.title = 'SmartHeartDiagnosis - Xem trước PDF';
+      previewWindow.document.body.innerHTML = '<p style="font-family: Arial, sans-serif; padding: 24px;">Đang tạo bản xem trước PDF...</p>';
+      await pdfMake.createPdf(buildPdfReport()).open(previewWindow);
+    } catch (err) {
+      previewWindow.close();
+      setError('Không thể tạo bản xem trước PDF. Vui lòng thử lại.');
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!result || !primaryResult) return;
+
+    const dateToken = new Date().toISOString().slice(0, 10);
+    try {
+      await pdfMake
+        .createPdf(buildPdfReport())
+        .download(`SmartHeartDiagnosis-risk-report-${dateToken}.pdf`);
+    } catch (err) {
+      setError('Không thể xuất PDF. Vui lòng thử lại.');
+    }
   };
 
   return (
@@ -327,9 +528,19 @@ export default function DiagnosisTab({ selectedModel }) {
                 <span className="result-status-dot"></span>
                 <span>Kết quả phân tích nguy cơ</span>
               </div>
-              <div className="result-model-chip">
-                <span>Mô hình chính</span>
-                <strong>{selectedModel}</strong>
+              <div className="result-header-actions">
+                {/* <button type="button" className="result-export-btn result-preview-btn" onClick={handlePreviewPdf}>
+                  <Eye size={16} />
+                  <span>Xem trước PDF</span>
+                </button>
+                <button type="button" className="result-export-btn" onClick={handleExportPdf}>
+                  <Download size={16} />
+                  <span>Xuất PDF</span>
+                </button> */}
+                <div className="result-model-chip">
+                  <span>Mô hình chính</span>
+                  <strong>{selectedModel}</strong>
+                </div>
               </div>
             </div>
 
@@ -380,6 +591,23 @@ export default function DiagnosisTab({ selectedModel }) {
               <div className="result-summary-card">
                 <span>Yếu tố nguy cơ</span>
                 <strong>{result.risk_factors?.length ?? 0} mục</strong>
+              </div>
+            </div>
+
+            <div className="result-export-panel">
+              <div>
+                <strong>Xuất báo cáo kết quả</strong>
+                <p>Xem trước báo cáo PDF trước, sau đó tải file về máy khi nội dung đã đúng.</p>
+              </div>
+              <div className="result-export-actions">
+                <button type="button" className="result-export-btn result-preview-btn" onClick={handlePreviewPdf}>
+                  <Eye size={18} />
+                  <span>Xem trước PDF</span>
+                </button>
+                <button type="button" className="result-export-btn result-export-btn-primary" onClick={handleExportPdf}>
+                  <Download size={18} />
+                  <span>Xuất PDF</span>
+                </button>
               </div>
             </div>
 

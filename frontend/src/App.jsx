@@ -3,6 +3,7 @@ import DiagnosisTab from './components/DiagnosisTab';
 import AnalysisTab from './components/AnalysisTab';
 import ExplorerTab from './components/ExplorerTab';
 import AboutTab from './components/AboutTab';
+import ChatAssistant from './components/ChatAssistant';
 import { HeartPulse, BarChart2, Database, Info, Moon, Sun } from 'lucide-react';
 
 const TABS = [
@@ -123,6 +124,8 @@ export default function App() {
       <main className="main-content">
         {renderTab()}
       </main>
+
+      <ChatAssistant />
     </div>
   );
 }

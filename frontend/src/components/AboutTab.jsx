@@ -54,20 +54,6 @@ export default function AboutTab() {
         </div>
       </div>
 
-      <div className="card">
-        <h2 className="section-title">
-          <Database className="icon-purple" /> Về Tập Dữ Liệu Huấn Luyện
-        </h2>
-        <p>
-          Mô hình được huấn luyện trên <strong>Heart Failure Prediction Dataset</strong> 
-          <br />(bao gồm 918 mẫu thu thập từ 5 cơ sở dữ liệu tim mạch lớn: Cleveland, Hungarian, Switzerland, Long Beach VA, và Stalog).
-        </p>
-        <div className="data-features-list">
-          <div className="feature-item-desc">
-            <strong>11 Đặc trưng lâm sàng:</strong> Tuổi (Age), Giới tính (Sex), Loại đau ngực (ChestPainType), Huyết áp tâm thu (RestingBP), Cholesterol huyết thanh (Cholesterol), Đường huyết lúc đói (FastingBS), Điện tâm đồ lúc nghỉ (RestingECG), Nhịp tim tối đa (MaxHR), Đau ngực khi vận động (ExerciseAngina), Độ chênh ST (Oldpeak), Độ dốc đoạn ST (ST_Slope).
-          </div>
-        </div>
-      </div>
 
       {/* <div className="warning-box">
         <ShieldAlert className="warning-icon" />
