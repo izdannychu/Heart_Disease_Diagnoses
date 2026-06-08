@@ -88,10 +88,16 @@ export default function DiagnosisTab({ selectedModel }) {
 
   // Get the primary model result
   const primaryResult = result?.predictions?.[selectedModel];
-  const isHighRisk = primaryResult?.prediction === 1;
-  const confidence = primaryResult ? (primaryResult.confidence * 100).toFixed(1) : 0;
+  const riskProbability = primaryResult?.risk_probability ?? primaryResult?.probability_1 ?? 0;
+  const riskPercentage = (riskProbability * 100).toFixed(1);
+  const isHighRisk = riskProbability >= 0.5;
+  const riskLevelLabel = riskProbability >= 0.75 ? 'Mức nguy cơ cao'
+    : riskProbability >= 0.5 ? 'Mức nguy cơ cần chú ý'
+      : riskProbability >= 0.25 ? 'Mức nguy cơ thấp - trung bình'
+        : 'Mức nguy cơ thấp';
+  const ensembleRiskPercentage = result?.ensemble_risk_percentage?.toFixed?.(1) ?? result?.ensemble_risk_percentage;
 
-  // Circular progress for confidence
+  // Circular progress for disease risk percentage
   const renderConfidenceCircle = (value, risk) => {
     const radius = 54;
     const circumference = 2 * Math.PI * radius;
@@ -117,7 +123,7 @@ export default function DiagnosisTab({ selectedModel }) {
             }}
           />
           <text x="64" y="58" textAnchor="middle" fill="var(--text-primary)" fontSize="22" fontWeight="bold">{value}%</text>
-          <text x="64" y="76" textAnchor="middle" fill="var(--text-secondary)" fontSize="9">Độ tin cậy</text>
+          <text x="64" y="76" textAnchor="middle" fill="var(--text-secondary)" fontSize="9">Nguy cơ</text>
         </svg>
       </div>
     );
@@ -127,8 +133,8 @@ export default function DiagnosisTab({ selectedModel }) {
     <div className="tab-pane fade-in">
       <div className="section-header">
         <HeartPulse className="icon-red" />
-        <h2>Chẩn Đoán Nguy Cơ Bệnh Mạch Vành</h2>
-        <p>Nhập đầy đủ 11 chỉ số lâm sàng của bệnh nhân, sau đó nhấn <strong>"Phân Tích Nguy Cơ"</strong> để nhận kết quả dự đoán từ mô hình <strong>{selectedModel}</strong>.</p>
+        <h2>Ước Tính Phần Trăm Nguy Cơ Bệnh Mạch Vành</h2>
+        <p>Nhập đầy đủ 11 chỉ số lâm sàng của bệnh nhân, sau đó nhấn <strong>"Phân Tích Nguy Cơ"</strong> để nhận tỷ lệ nguy cơ mắc bệnh tim từ mô hình <strong>{selectedModel}</strong>.</p>
       </div>
 
       <form className="diagnosis-form" onSubmit={handleSubmit}>
@@ -307,47 +313,98 @@ export default function DiagnosisTab({ selectedModel }) {
       {result && showResultModal && (
         <div className="result-modal-overlay fade-in" role="dialog" aria-modal="true" aria-labelledby="diagnosis-result-title">
           <div className={`result-panel result-modal ${isHighRisk ? 'result-danger' : 'result-safe'}`}>
-          <button
-            type="button"
-            className="result-modal-close"
-            onClick={() => setShowResultModal(false)}
-            aria-label="Đóng kết quả chẩn đoán"
-          >
-            <X size={20} />
-          </button>
-          <div className="result-header">
-            <div className="result-icon-wrap">
-              {isHighRisk ? <AlertTriangle size={36} /> : <ShieldCheck size={36} />}
+            <button
+              type="button"
+              className="result-modal-close"
+              onClick={() => setShowResultModal(false)}
+              aria-label="Đóng kết quả chẩn đoán"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="result-header">
+              <div className="result-eyebrow">
+                <span className="result-status-dot"></span>
+                <span>Kết quả phân tích nguy cơ</span>
+              </div>
+              <div className="result-model-chip">
+                <span>Mô hình chính</span>
+                <strong>{selectedModel}</strong>
+              </div>
             </div>
-            <div className="result-title">
-              <h2 id="diagnosis-result-title">{isHighRisk ? 'PHÁT HIỆN NGUY CƠ MẮC BỆNH TIM' : 'KHÔNG PHÁT HIỆN NGUY CƠ BỆNH TIM'}</h2>
-              <p>Kết quả từ mô hình: <strong>{selectedModel}</strong></p>
+
+            <div className="result-hero">
+              <div className="result-hero-main">
+                <div className="result-icon-wrap">
+                  {isHighRisk ? <AlertTriangle size={30} /> : <ShieldCheck size={30} />}
+                </div>
+                <div className="result-title">
+                  <p className="result-kicker">{riskLevelLabel}</p>
+                  <h2 id="diagnosis-result-title">Nguy cơ mắc bệnh tim</h2>
+                  <div className="result-score-row">
+                    <span className="result-score">{riskPercentage}</span>
+                    <span className="result-percent">%</span>
+                  </div>
+                  <p>Ước tính từ xác suất lớp bệnh tim của mô hình. Kết quả chỉ dùng để tham khảo học thuật, không phải chẩn đoán y khoa.</p>
+                </div>
+              </div>
+              {renderConfidenceCircle(parseFloat(riskPercentage), isHighRisk)}
             </div>
-            {renderConfidenceCircle(parseFloat(confidence), isHighRisk)}
-          </div>
+
+            <div className="risk-meter-card">
+              <div className="risk-meter-header">
+                <span>Thang xác suất nguy cơ</span>
+                <strong>{riskPercentage}%</strong>
+              </div>
+              <div className="risk-meter-track" aria-hidden="true">
+                <div className="risk-meter-fill" style={{ width: `${Math.min(parseFloat(riskPercentage), 100)}%` }}></div>
+              </div>
+              <div className="risk-meter-labels">
+                <span>0%</span>
+                <span>25%</span>
+                <span>50%</span>
+                <span>75%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
+            <div className="result-summary-grid">
+              <div className="result-summary-card">
+                <span>Model đang xem</span>
+                <strong>{selectedModel}</strong>
+              </div>
+              <div className="result-summary-card">
+                <span>Trung bình 4 mô hình</span>
+                <strong>{ensembleRiskPercentage ? `${ensembleRiskPercentage}%` : 'Chưa có'}</strong>
+              </div>
+              <div className="result-summary-card">
+                <span>Yếu tố nguy cơ</span>
+                <strong>{result.risk_factors?.length ?? 0} mục</strong>
+              </div>
+            </div>
 
           {/* All models comparison */}
-          <div className="result-models-toggle" onClick={() => setShowAllModels(!showAllModels)}>
+          <button type="button" className="result-models-toggle" onClick={() => setShowAllModels(!showAllModels)}>
             <span>Kết quả từ tất cả mô hình</span>
             {showAllModels ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </div>
+          </button>
           {showAllModels && (
             <div className="all-models-grid fade-in">
               {Object.entries(result.predictions).map(([name, pred]) => (
-                <div key={name} className={`model-result-card ${pred.prediction === 1 ? 'model-danger' : 'model-safe'}`}>
+                <div key={name} className={`model-result-card ${(pred.risk_probability ?? pred.probability_1) >= 0.5 ? 'model-danger' : 'model-safe'}`}>
                   <h4>{name}</h4>
                   <div className="model-result-status">
-                    {pred.prediction === 1 ? <AlertTriangle size={16} /> : <ShieldCheck size={16} />}
-                    <span>{pred.prediction === 1 ? 'Nguy cơ' : 'Bình thường'}</span>
+                    {(pred.risk_probability ?? pred.probability_1) >= 0.5 ? <AlertTriangle size={16} /> : <ShieldCheck size={16} />}
+                    <span>Nguy cơ {(pred.risk_percentage ?? ((pred.probability_1 ?? 0) * 100)).toFixed(1)}%</span>
                   </div>
                   <div className="model-result-conf">
                     <div className="conf-bar-track">
                       <div className="conf-bar-fill" style={{
-                        width: `${(pred.probability_1 * 100).toFixed(0)}%`,
-                        backgroundColor: pred.prediction === 1 ? '#ef4444' : '#10b981'
+                        width: `${((pred.risk_probability ?? pred.probability_1) * 100).toFixed(0)}%`,
+                        backgroundColor: (pred.risk_probability ?? pred.probability_1) >= 0.5 ? '#ef4444' : '#10b981'
                       }}></div>
                     </div>
-                    <span>P(Bệnh) = {(pred.probability_1 * 100).toFixed(1)}%</span>
+                    <span>Xác suất mắc bệnh tim = {(pred.risk_percentage ?? ((pred.probability_1 ?? 0) * 100)).toFixed(1)}%</span>
                   </div>
                 </div>
               ))}

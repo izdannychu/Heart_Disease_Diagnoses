@@ -133,12 +133,15 @@ def predict():
             
             # Confidence is the probability of the predicted class
             confidence = float(prob[pred])
+            risk_probability = float(prob[1])
             
             predictions[name] = {
                 'prediction': pred,
                 'confidence': confidence,
                 'probability_0': float(prob[0]),
-                'probability_1': float(prob[1])
+                'probability_1': risk_probability,
+                'risk_probability': risk_probability,
+                'risk_percentage': round(risk_probability * 100, 1)
             }
             
         # Clinical Risk Explanation Engine
@@ -266,11 +269,11 @@ def predict():
             })
             
         # Generate medical recommendations
-        # If any model predicts disease, or if we average predictions and it's positive
-        # We can also let frontend choose which model to look at, but we provide recommendations based on the overall prediction
-        # Let's count votes
-        votes = sum([p['prediction'] for p in predictions.values()])
-        is_high_risk = votes >= 2 # Majority vote or any model
+        # Use the average disease probability from all models as the overall risk.
+        # The UI presents this as a percentage instead of a binary diagnosis.
+        ensemble_risk_probability = float(np.mean([p['risk_probability'] for p in predictions.values()]))
+        ensemble_risk_percentage = round(ensemble_risk_probability * 100, 1)
+        is_high_risk = ensemble_risk_probability >= 0.5
         
         recommendations = {
             'tests': [],
@@ -310,6 +313,9 @@ def predict():
             
         response = {
             'predictions': predictions,
+            'ensemble_risk_probability': ensemble_risk_probability,
+            'ensemble_risk_percentage': ensemble_risk_percentage,
+            'risk_threshold': 0.5,
             'risk_factors': risk_factors,
             'recommendations': recommendations,
             'patient_data': data

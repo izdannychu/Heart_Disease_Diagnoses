@@ -80,7 +80,7 @@ export default function App() {
         </div>
 
         <nav ref={navRef} className="header-nav" aria-label="Điều hướng chính">
-          <div className="n av-indicator-liquid" style={indicatorStyle} />
+          <div className="nav-indicator-liquid" style={indicatorStyle} />
           {TABS.map(tab => {
             const Icon = tab.icon;
             return (
