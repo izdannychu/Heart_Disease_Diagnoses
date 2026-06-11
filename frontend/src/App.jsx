@@ -1,34 +1,40 @@
-import { useEffect, useRef, useState } from 'react';
-import DiagnosisTab from './components/DiagnosisTab';
-import AnalysisTab from './components/AnalysisTab';
-import ExplorerTab from './components/ExplorerTab';
-import AboutTab from './components/AboutTab';
-import ChatAssistant from './components/ChatAssistant';
-import { HeartPulse, BarChart2, Database, Info, Moon, Sun } from 'lucide-react';
+import { useEffect, useRef, useState } from "react";
+import DiagnosisTab from "./components/DiagnosisTab";
+import AnalysisTab from "./components/AnalysisTab";
+import ExplorerTab from "./components/ExplorerTab";
+import AboutTab from "./components/AboutTab";
+import ChatAssistant from "./components/ChatAssistant";
+import { HeartPulse, BarChart2, Database, Info, Moon, Sun } from "lucide-react";
 
 const TABS = [
-  { id: 'about', label: 'Giới Thiệu', icon: Info },
-  { id: 'diagnosis', label: 'Chẩn Đoán', icon: HeartPulse },
-  { id: 'analysis', label: 'Phân Tích Mô Hình', icon: BarChart2 },
-  { id: 'explorer', label: 'Khám Phá Dữ Liệu', icon: Database },
+  { id: "about", label: "Giới Thiệu", icon: Info },
+  { id: "diagnosis", label: "Chẩn Đoán", icon: HeartPulse },
+  { id: "analysis", label: "Phân Tích Mô Hình", icon: BarChart2 },
+  { id: "explorer", label: "Khám Phá Dữ Liệu", icon: Database },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('diagnosis');
-  const [selectedModel, setSelectedModel] = useState('Random Forest');
+  const [activeTab, setActiveTab] = useState("about");
+  const [selectedModel, setSelectedModel] = useState("Random Forest");
   const navRef = useRef(null);
   const tabRefs = useRef({});
   const [theme, setTheme] = useState(() => {
-    const savedTheme = localStorage.getItem('SmartHeartDiagnosis-theme');
+    const savedTheme = localStorage.getItem("SmartHeartDiagnosis-theme");
     if (savedTheme) return savedTheme;
-    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    return window.matchMedia("(prefers-color-scheme: light)").matches
+      ? "light"
+      : "dark";
   });
 
-  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, opacity: 0 });
+  const [indicatorStyle, setIndicatorStyle] = useState({
+    left: 0,
+    width: 0,
+    opacity: 0,
+  });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('SmartHeartDiagnosis-theme', theme);
+    localStorage.setItem("SmartHeartDiagnosis-theme", theme);
   }, [theme]);
 
   useEffect(() => {
@@ -38,7 +44,7 @@ export default function App() {
         setIndicatorStyle({
           left: activeEl.offsetLeft,
           width: activeEl.offsetWidth,
-          opacity: 1
+          opacity: 1,
         });
       }
     };
@@ -46,29 +52,43 @@ export default function App() {
     updateIndicator();
     const frame = requestAnimationFrame(updateIndicator);
     const activeEl = tabRefs.current[activeTab];
-    activeEl?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    activeEl?.scrollIntoView({
+      block: "nearest",
+      inline: "center",
+      behavior: "smooth",
+    });
 
     const resizeObserver = new ResizeObserver(updateIndicator);
     if (navRef.current) resizeObserver.observe(navRef.current);
-    window.addEventListener('resize', updateIndicator);
+    window.addEventListener("resize", updateIndicator);
     return () => {
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateIndicator);
+      window.removeEventListener("resize", updateIndicator);
     };
   }, [activeTab]);
 
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'diagnosis': return <DiagnosisTab selectedModel={selectedModel} />;
-      case 'analysis': return <AnalysisTab selectedModel={selectedModel} setSelectedModel={setSelectedModel} />;
-      case 'explorer': return <ExplorerTab />;
-      case 'about': return <AboutTab />;
-      default: return null;
+      case "diagnosis":
+        return <DiagnosisTab selectedModel={selectedModel} />;
+      case "analysis":
+        return (
+          <AnalysisTab
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+          />
+        );
+      case "explorer":
+        return <ExplorerTab />;
+      case "about":
+        return <AboutTab />;
+      default:
+        return null;
     }
   };
 
@@ -82,18 +102,18 @@ export default function App() {
 
         <nav ref={navRef} className="header-nav" aria-label="Điều hướng chính">
           <div className="nav-indicator-liquid" style={indicatorStyle} />
-          {TABS.map(tab => {
+          {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
-                ref={node => {
+                ref={(node) => {
                   tabRefs.current[tab.id] = node;
                 }}
                 type="button"
-                className={`nav-btn ${activeTab === tab.id ? 'nav-active' : ''}`}
+                className={`nav-btn ${activeTab === tab.id ? "nav-active" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
-                aria-current={activeTab === tab.id ? 'page' : undefined}
+                aria-current={activeTab === tab.id ? "page" : undefined}
                 aria-label={tab.label}
                 title={tab.label}
               >
@@ -113,17 +133,19 @@ export default function App() {
             type="button"
             className="theme-toggle"
             onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            aria-label={
+              theme === "dark"
+                ? "Chuyển sang giao diện sáng"
+                : "Chuyển sang giao diện tối"
+            }
+            title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
       </header>
 
-      <main className="main-content">
-        {renderTab()}
-      </main>
+      <main className="main-content">{renderTab()}</main>
 
       <ChatAssistant />
     </div>
